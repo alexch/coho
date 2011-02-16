@@ -47,9 +47,11 @@ class Page < Erector::Widgets::Page
     if @session[:access_token]
       button_form "/clear", "Sign Out"
       button_form "/tasks", "List Tasks"
+      button_form "/users", "List Users"
     end
     hr
     if @result
+      h2 "Result"
       pre do
         out = ""
         PP.pp(@result, out)
@@ -122,10 +124,14 @@ def consumer
     })
 end
 
+def render_page(result = nil)
+  Page.new(:session => session, :request => request, :result => result).to_html
+end
+
 enable :sessions, :logging
 
 get "/" do
-  Page.new(:session => session, :request => request).to_html
+  render_page
 end
 
 get "/authorize" do
@@ -160,7 +166,7 @@ end
 get "/authorized" do
   request_token = session[:request_token]
   access_token = request_token.get_access_token
-  # session[:request_token] = nil  # do this later, after we're more debugged
+  session.delete :request_token  # comment this line out if you want to see the request token in the session table
   session[:access_token] = access_token
   redirect "/"
 end
@@ -171,8 +177,22 @@ get "/clear" do
   redirect "/"
 end
 
-get "/tasks" do
-  response = session[:access_token].get("http://api.cohuman.com/tasks", {"Content-Type" => "application/json"})
+def get_and_render(path)
+  path.gsub!(/^\//,'') # removes leading slash from path
+  url = "http://api.cohuman.com/#{path}"
+  response = session[:access_token].get(url, {"Content-Type" => "application/json"})
   result = JSON.parse(response.body)
-  Page.new(:session => session, :request => request, :result => result).to_html
+  render_page(result)
+end
+
+get "/tasks" do
+  get_and_render "/tasks"
+end
+
+get "/users" do
+  get_and_render "/users?limit=0"
+end
+
+get "/projects" do
+  get_and_render "/projects?limit=0"
 end
