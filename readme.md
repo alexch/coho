@@ -1,5 +1,5 @@
 # Coho
-A Cohuman API playground
+A Cohuman API playground. Usually running at <http://coho.heroku.com>.
 
 # Setup
 
