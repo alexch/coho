@@ -33,24 +33,34 @@ class Page < Erector::Widgets::Page
     padding: .5em .25em;
     vertical-align: top;
     text-align: left;
+    max-width: 80em;
   }
   th { background: #ededed; }
 
   pre { margin: 0; 
     max-height: 20em; overflow-y: auto;
-    max-width: 80em; overflow-x: auto;
+    max-width: 60em; overflow-x: auto;
     }
   CSS
 
   def page_title
     "Coho"
   end
+  
+  def logo
+    img :src => "coho_salmon.jpg", :width => (831/2), :height => (347/2), :align=>"left"
+    br; br; br
+    h1 "Coho!"
+    i do
+      text "Swimming upstream in the "
+      a "Cohuman API", :href => "http://developer.cohuman.com"
+    end
+    br :clear => true, :style => "clear:both;"
+  end
 
   def body_content
-    h1 { 
-      img :src => "coho_salmon.jpg", :width => (831/2), :height => (347/2)
-      text "Coho!"
-    }
+    ribbon
+    logo
     hr
     button_form "/authorize", "Sign In To Cohuman"
     if @session[:access_token]
@@ -123,6 +133,7 @@ class Page < Erector::Widgets::Page
         end
       end
     end
+    
   end
 
   def button_form action, label
@@ -130,6 +141,13 @@ class Page < Erector::Widgets::Page
       input :type=> :submit, :value => label
     end
   end
+  
+  def ribbon
+    rawtext <<-HTML
+    <a href="http://github.com/alexch/coho"><img style="position: absolute; top: 0; right: 0; border: 0;" src="https://assets1.github.com/img/7afbc8b248c68eb468279e8c17986ad46549fb71?repo=&url=http%3A%2F%2Fs3.amazonaws.com%2Fgithub%2Fribbons%2Fforkme_right_darkblue_121621.png&path=" alt="Fork me on GitHub"></a>
+    HTML
+  end
+  
 end
 
 def credentials
