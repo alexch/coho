@@ -23,14 +23,23 @@ class Rack::Request
 end  
 
 class Page < Erector::Widgets::Page
-  needs :session, :request, :result => nil
+  needs :session, :request, :result => nil, :query => nil
 
   external :style, <<-CSS
+  body { font-family:sans-serif;}
   table { border: 1px solid gray; border-spacing: 0; }
-  td, th { border-bottom: 1px solid gray; border-right: 1px solid gray; padding: 1px;}
+  td, th { 
+    border: 1px solid gray; 
+    padding: .5em .25em;
+    vertical-align: top;
+    text-align: left;
+  }
+  th { background: #ededed; }
 
-  td pre { width: 50em;}
-  td { overflow-x: auto; }
+  pre { margin: 0; 
+    max-height: 20em; overflow-y: auto;
+    max-width: 80em; overflow-x: auto;
+    }
   CSS
 
   def page_title
@@ -45,17 +54,28 @@ class Page < Erector::Widgets::Page
     hr
     button_form "/authorize", "Sign In To Cohuman"
     if @session[:access_token]
-      button_form "/clear", "Sign Out"
+      button_form "/logout", "Sign Out"
       button_form "/tasks", "List Tasks"
       button_form "/users", "List Users"
+      button_form "/projects", "List Projects"
     end
-    hr
-    if @result
-      h2 "Result"
-      pre do
-        out = ""
-        PP.pp(@result, out)
-        text out
+    if @query or @result
+      hr
+      table do
+        if @query
+          tr do
+            th "Query:"
+            td { pre @query }
+          end
+        end
+        if @result
+          tr { th "Result", :colspan => 2 }
+          tr { td(:colspan => 2) { pre {
+            out = ""
+            PP.pp(@result, out)
+            text out
+          } } }
+        end
       end
     end
     hr
@@ -76,19 +96,29 @@ class Page < Erector::Widgets::Page
   def hash_table(name, hash)
     table do
       tr do
-        th name, :colspan=>2
+        th name, :colspan => 2
       end
-      hash.each_pair do |k,v|
-        tr do
-          td k.to_s
-          if v
+      if hash.empty?
+        td(:colspan => 2) {
+          rawtext nbsp*5 
+          text "[empty]"
+          rawtext nbsp*5 
+        }
+      else
+        hash.each_pair do |k,v|
+          tr do
+            td k.to_s
             td do
-              pre do
-                out = ""
-                PP.pp(v, out)
-                text out
+              if v
+                pre do
+                  out = ""
+                  PP.pp(v, out)
+                  text out
+                end
+              else
+                rawtext nbsp
               end
-            end
+            end            
           end
         end
       end
@@ -124,11 +154,11 @@ def consumer
     })
 end
 
-def render_page(result = nil)
-  Page.new(:session => session, :request => request, :result => result).to_html
+def render_page(query = nil, result = nil)
+  Page.new(:session => session, :request => request, :query => query, :result => result).to_html
 end
 
-enable :sessions, :logging
+enable :sessions
 
 get "/" do
   render_page
@@ -171,18 +201,40 @@ get "/authorized" do
   redirect "/"
 end
 
-get "/clear" do
+get "/logout" do
+  if session[:access_token].nil?
+    redirect "/"
+    return
+  end
+  
+  url = api_url("/logout")
+  response = session[:access_token].post(url, {"Content-Type" => "application/json"})
+  result = begin
+    JSON.parse(response.body)
+  rescue
+    {
+      :response => "#{response.code} #{response.message}",
+      :headers => response.to_hash,
+      :body => response.body
+    }
+  end
+  
   session.delete(:access_token)
   session.delete(:request_token)
-  redirect "/"
+
+  render_page(url, result)
+end
+
+def api_url(path)
+  path.gsub!(/^\//,'') # removes leading slash from path
+  url = "http://api.cohuman.com/#{path}"
 end
 
 def get_and_render(path)
-  path.gsub!(/^\//,'') # removes leading slash from path
-  url = "http://api.cohuman.com/#{path}"
+  url = api_url(path)
   response = session[:access_token].get(url, {"Content-Type" => "application/json"})
   result = JSON.parse(response.body)
-  render_page(result)
+  render_page(url, result)
 end
 
 get "/tasks" do
