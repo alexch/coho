@@ -38,11 +38,15 @@ class Page < Erector::Widgets::Page
   end
 
   def body_content
-    h1 "Coho!"
+    h1 { 
+      img :src => "coho_salmon.jpg", :width => (831/2), :height => (347/2)
+      text "Coho!"
+    }
     hr
-    login_form
+    button_form "/authorize", "Sign In To Cohuman"
     if @session[:access_token]
-      button_form "/tasks", "Tasks"
+      button_form "/clear", "Sign Out"
+      button_form "/tasks", "List Tasks"
     end
     hr
     if @result
@@ -75,7 +79,15 @@ class Page < Erector::Widgets::Page
       hash.each_pair do |k,v|
         tr do
           td k.to_s
-          td { pre v.inspect } if v
+          if v
+            td do
+              pre do
+                out = ""
+                PP.pp(v, out)
+                text out
+              end
+            end
+          end
         end
       end
     end
@@ -86,18 +98,18 @@ class Page < Erector::Widgets::Page
       input :type=> :submit, :value => label
     end
   end
-  
-  def login_form
-    button_form "/authorize", "Sign In To Cohuman"
-  end
 end
 
 def credentials
-  if ENV['COHUMAN_API_KEY']
+  @credentials ||= if ENV['COHUMAN_API_KEY']
     {:key => ENV['COHUMAN_API_KEY'], :secret => ENV['COHUMAN_API_SECRET']}
   else
-    here = File.expand_path(File.dirname(__FILE__))
-    YAML.load( File.read( "#{here}/config/cohuman.yml") )
+    begin
+      here = File.expand_path(File.dirname(__FILE__))
+      YAML.load( File.read( "#{here}/config/cohuman.yml") )
+    rescue Errno::ENOENT
+      nil
+    end
   end
 end
 
@@ -117,9 +129,32 @@ get "/" do
 end
 
 get "/authorize" do
-  request_token = consumer.get_request_token(:oauth_callback=>"#{request.site}/authorized")
-  session[:request_token] = request_token
-  redirect request_token.authorize_url
+  if credentials
+    request_token = consumer.get_request_token(:oauth_callback=>"#{request.site}/authorized")
+    session[:request_token] = request_token
+    redirect request_token.authorize_url
+  else
+    erector {
+      h1 "Configuration error"
+      ul {
+        li {
+          text "Please set the environment variables "
+          code "COHUMAN_API_KEY"
+          text " and " 
+          code "COHUMAN_API_SECRET"
+        }
+        li {
+          text " or create "
+          code "config/cohuman.yml"
+        }
+      }
+      p "For a Heroku app, do it like this:"
+      pre <<-PRE
+heroku config:add COHUMAN_API_KEY=asldjasldkjal
+heroku config:add COHUMAN_API_SECRET=asdfasdfasdf
+      PRE
+    }
+  end
 end
     
 get "/authorized" do
@@ -127,6 +162,12 @@ get "/authorized" do
   access_token = request_token.get_access_token
   # session[:request_token] = nil  # do this later, after we're more debugged
   session[:access_token] = access_token
+  redirect "/"
+end
+
+get "/clear" do
+  session.delete(:access_token)
+  session.delete(:request_token)
   redirect "/"
 end
 
